@@ -1,0 +1,30 @@
+[
+  {
+    "command": "go test ./internal/sessions ./internal/usage -run ^(TestCodexConversation|TestCodexTrace|TestSanitizedRealTrace|TestTrace|TestSessionTrace|TestSessionExporter) -count=20",
+    "name": "regression",
+    "exitCode": 0,
+    "seconds": 19.703,
+    "log": "windows-regression.log"
+  },
+  {
+    "command": "go vet ./...",
+    "name": "vet",
+    "exitCode": 0,
+    "seconds": 3.485,
+    "log": "windows-vet.log"
+  },
+  {
+    "command": "go build -o C:\\Users\\ajuck\\Documents\\Codex\\2026-10-14\\shen\\work\\magpie-conversation-trace\\review-evidence\\magpie-reviewed.exe",
+    "name": "build",
+    "exitCode": 0,
+    "seconds": 4.312,
+    "log": "windows-build.log"
+  },
+  {
+    "command": "go test -run ^$ ./...",
+    "name": "test-compilation",
+    "exitCode": 0,
+    "seconds": 6.485,
+    "log": "windows-test-compilation.log"
+  }
+]
