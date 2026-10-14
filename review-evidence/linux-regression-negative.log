@@ -1,0 +1,15 @@
+--- FAIL: TestCodexConversationResponsesDoNotRepeatOldReplies (0.00s)
+    traces_codex_conversation_test.go:58: message without role: [{"text":"Inspect the files.","type":"text"}]
+--- FAIL: TestCodexConversationCompletedTurnIsNotRecreated (0.00s)
+    traces_codex_conversation_test.go:109: completed turn exported again: [{Agent:codex Session:session Turn:old ID:846bdf93dc9b798e Parent: Name:codex interaction Kind:span Model: Provider: Served: Start:2026-10-14 16:53:18.492413411 +0000 UTC End:2026-10-14 16:53:19.492413411 +0000 UTC Input: Output: Tokens:{Input:0 Output:0 CacheRead:0 CacheWrite:0 CacheWrite1h:0} Reasoning:0 Error:true Inferred:true Update:false Pending:false} {Agent:codex Session:session Turn:new ID:1fbedcbeb150521c Parent: Name:codex interaction Kind:span Model: Provider: Served: Start:2026-10-14 16:53:19.492413411 +0000 UTC End:2026-10-14 16:53:19.492413411 +0000 UTC Input: Output: Tokens:{Input:0 Output:0 CacheRead:0 CacheWrite:0 CacheWrite1h:0} Reasoning:0 Error:false Inferred:false Update:false Pending:true}]
+--- FAIL: TestCodexConversationMultiPartUserEcho (0.00s)
+    traces_codex_conversation_test.go:137: message without role: [{"text":"Instructions.","type":"text"}]
+--- FAIL: TestCodexConversationRecordedOperationDetails (0.00s)
+    traces_codex_conversation_test.go:167: patch parameters or result missing
+--- FAIL: TestCodexConversationSanitizedRollout (0.01s)
+    traces_codex_conversation_test.go:236: completed turns retained or duplicated: roots=3 turns=0 current=turn-2
+--- FAIL: TestCodexConversationNativeMCPResultIsAuthoritative (0.00s)
+    traces_codex_conversation_test.go:273: nativeFirst=false: model history kept the inferred result: 
+FAIL
+FAIL	github.com/yetone/magpie/internal/sessions	0.026s
+FAIL
