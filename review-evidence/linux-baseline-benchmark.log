@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+pkg: github.com/yetone/magpie/internal/sessions
+cpu: Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz
+BenchmarkCodexConversationRollout/metadata-4         	     100	   1703311 ns/op	  40.57 MB/s	  610197 B/op	    7441 allocs/op
+BenchmarkCodexConversationRollout/metadata-4         	     100	   1582418 ns/op	  43.67 MB/s	  609892 B/op	    7438 allocs/op
+BenchmarkCodexConversationRollout/metadata-4         	     100	   1609360 ns/op	  42.94 MB/s	  609893 B/op	    7438 allocs/op
+BenchmarkCodexConversationRollout/bodies-4           	     100	   1555633 ns/op	  44.42 MB/s	  614541 B/op	    7551 allocs/op
+BenchmarkCodexConversationRollout/bodies-4           	     100	   1575930 ns/op	  43.85 MB/s	  614548 B/op	    7551 allocs/op
+BenchmarkCodexConversationRollout/bodies-4           	     100	   1619876 ns/op	  42.66 MB/s	  614543 B/op	    7551 allocs/op
+PASS
+ok  	github.com/yetone/magpie/internal/sessions	0.999s
