@@ -1,0 +1,58 @@
+{
+  "before": {
+    "sessionId": "codex-export-before-20261015-162557",
+    "observations": 104,
+    "uniqueObservationIds": 103,
+    "types": {
+      "GENERATION": 28,
+      "TOOL": 73,
+      "SPAN": 3
+    },
+    "assistantReplies": {
+      "Fixture assistant message 1.": 5,
+      "Fixture assistant message 2.": 4,
+      "Fixture assistant message 3.": 3,
+      "Fixture assistant message 4.": 6,
+      "Fixture assistant message 5.": 1,
+      "Fixture assistant message 6.": 5,
+      "Fixture assistant message 7.": 3,
+      "Fixture assistant message 8.": 1
+    },
+    "tokenTotals": {
+      "input": 161194,
+      "output": 18570,
+      "input_cached_tokens": 6303744,
+      "input_cache_creation": 0,
+      "output_reasoning_tokens": 22860,
+      "total": 6506368
+    }
+  },
+  "after": {
+    "sessionId": "codex-export-after-20261015-165841",
+    "observations": 107,
+    "uniqueObservationIds": 107,
+    "types": {
+      "GENERATION": 28,
+      "TOOL": 77,
+      "SPAN": 2
+    },
+    "assistantReplies": {
+      "Fixture assistant message 1.": 1,
+      "Fixture assistant message 2.": 1,
+      "Fixture assistant message 3.": 1,
+      "Fixture assistant message 4.": 1,
+      "Fixture assistant message 5.": 1,
+      "Fixture assistant message 6.": 1,
+      "Fixture assistant message 7.": 1,
+      "Fixture assistant message 8.": 1
+    },
+    "tokenTotals": {
+      "input": 161194,
+      "output": 18570,
+      "input_cached_tokens": 6303744,
+      "input_cache_creation": 0,
+      "output_reasoning_tokens": 22860,
+      "total": 6506368
+    }
+  }
+}
