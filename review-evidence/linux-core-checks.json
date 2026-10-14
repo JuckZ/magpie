@@ -1,0 +1,44 @@
+[
+  {
+    "command": "go test -tags nogui ./internal/sessions ./internal/usage -run ^(TestCodexConversation|TestCodexTrace|TestSanitizedRealTrace|TestTrace|TestSessionTrace|TestSessionExporter) -count=20",
+    "name": "regression",
+    "exitCode": 0,
+    "seconds": 6.392,
+    "log": "linux-regression.log"
+  },
+  {
+    "command": "go vet -tags nogui ./...",
+    "name": "vet",
+    "exitCode": 0,
+    "seconds": 34.62,
+    "log": "linux-vet.log"
+  },
+  {
+    "command": "go build -tags nogui -o /mnt/c/Users/ajuck/Documents/Codex/2026-10-14/shen/work/magpie-conversation-trace/review-evidence/magpie-reviewed-linux",
+    "name": "build",
+    "exitCode": 0,
+    "seconds": 30.331,
+    "log": "linux-build.log"
+  },
+  {
+    "command": "go test -race -tags nogui ./internal/sessions ./internal/usage -run ^(TestCodexConversation|TestCodexTrace|TestSanitizedRealTrace|TestTrace|TestSessionTrace|TestSessionExporter) -count=20",
+    "name": "race",
+    "exitCode": 0,
+    "seconds": 13.701,
+    "log": "linux-race.log"
+  },
+  {
+    "command": "go test -race -tags nogui ./internal/redact -count=1",
+    "name": "redaction-race",
+    "exitCode": 0,
+    "seconds": 1.828,
+    "log": "linux-redaction-race.log"
+  },
+  {
+    "command": "go test -tags nogui ./internal/sessions -count=1 -timeout 3m",
+    "name": "sessions-full",
+    "exitCode": 0,
+    "seconds": 25.891,
+    "log": "linux-sessions-full.log"
+  }
+]
