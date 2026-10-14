@@ -2495,6 +2495,25 @@ an observation window. Span IDs remain stable across repeated records.
 Pi and Codex have been tested end to end with real clients. The other adapters
 are covered by format fixtures but have **not been tested end to end**.
 
+With bodies enabled, Codex model observations reconstruct the active turn's
+recorded conversation as role/content messages, including the session's base
+instructions, developer messages, tool calls and their results. Each response's
+output contains only its new assistant messages and calls; earlier replies and
+tool results belong to later inputs. Matching response-item/UI message echoes
+are combined. Tool result messages carry their original call IDs, including in
+tool observations, so collectors can associate concurrent same-name calls.
+Native MCP completions replace inferred results in later inputs in either
+arrival order. JSON encoded inside tool arguments or results keeps its secret
+fields covered by the shared scrubber, including short secret values.
+Recorded child commands remain beneath their enclosing exec and are not added
+as a second model tool call. Turn completion releases its conversation state;
+unrelated settings/usage notifications cannot recreate a completed root.
+These bodies reconstruct what the rollout recorded, not the exact upstream
+request. Messages absent from the rollout and opaque encrypted reasoning are
+not recovered. Whole-body export avoids truncating a growing conversation's
+message JSON. Reconstructing the active history increases transient memory and
+encoding work, and completed history is not retained by the reader.
+
 Supported clients and formats:
 
 | Client | Local store | Timing |

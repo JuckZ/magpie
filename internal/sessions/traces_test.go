@@ -39,8 +39,15 @@ func TestCodexTraceRootWaitsForCompleteImageFirstTurn(t *testing.T) {
 		if finished.Pending || finished.ID != root.ID || model.Parent != root.ID {
 			t.Fatal("completion or child ancestry lost")
 		}
-		if bodies && (finished.Input != string(input) || model.Input != string(input) || finished.Output != "An image") {
+		if bodies && (finished.Input != string(input) || finished.Output != "An image") {
 			t.Fatal("image-first input or final output lost")
+		}
+		if bodies {
+			messages := codexConversationMessages(t, model.Input)
+			var parts []struct{ Type, Path, Text string }
+			if len(messages) != 1 || messages[0].Role != "user" || json.Unmarshal(messages[0].Content, &parts) != nil || len(parts) != 2 || parts[0].Type != "local_image" || parts[0].Path != "/tmp/image.png" || parts[1].Text != "Describe this image" {
+				t.Fatal("image-first generation input lost")
+			}
 		}
 		if !bodies && (finished.Input != "" || finished.Output != "" || model.Input != "") {
 			t.Fatal("bodies exported when disabled")

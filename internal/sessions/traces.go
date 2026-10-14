@@ -33,6 +33,8 @@ type traceTurn struct {
 	input, output, model string
 	failed, completed    bool
 	finishAfter          time.Time
+	codex                *codexTraceConversation
+	codexBase            string
 }
 
 // Allow a timing extension to append its final event across reader polls.
@@ -51,6 +53,7 @@ type traceCursor struct {
 	tools                    map[string]TraceSpan
 	parents                  map[string]string
 	claudeMessage            *claudeTraceMessage
+	codexBase                string
 }
 
 // TraceReader follows supported local agent stores modified since activation.
@@ -153,7 +156,7 @@ func (c *traceCursor) turn(id string, at time.Time) *traceTurn {
 			}
 			delete(c.turns, oldest)
 		}
-		t = &traceTurn{id: id, start: at, last: at}
+		t = &traceTurn{id: id, start: at, last: at, codexBase: c.codexBase}
 		c.turns[id] = t
 	}
 	return t
@@ -337,7 +340,10 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 		CompletedAtMS            json.RawMessage `json:"completed_at_ms"`
 		DurationMS               int64           `json:"duration_ms"`
 		LastAgentMessage         string          `json:"last_agent_message"`
-		Usage                    struct {
+		Metadata                 struct {
+			TurnID string `json:"turn_id"`
+		} `json:"internal_chat_message_metadata_passthrough"`
+		Usage struct {
 			Input      int `json:"input_tokens"`
 			Cached     int `json:"cached_input_tokens"`
 			CacheWrite int `json:"cache_write_input_tokens"`
@@ -345,14 +351,16 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 			Reasoning  int `json:"reasoning_output_tokens"`
 		}
 		Item struct {
-			Type, ID, Tool, Server, Status string
-			Command                        json.RawMessage
-			Arguments                      json.RawMessage
-			Content                        json.RawMessage
-			Output                         json.RawMessage
-			Result                         json.RawMessage
-			AggregatedOutput               string `json:"aggregated_output"`
-			ExitCode                       *int   `json:"exit_code"`
+			Type, ID, Tool, Server, Status, Kind, Path string
+			Command                                    json.RawMessage
+			Arguments                                  json.RawMessage
+			Content                                    json.RawMessage
+			Output                                     json.RawMessage
+			Result                                     json.RawMessage
+			Changes, Action, Query, Results            json.RawMessage
+			Stdout, Stderr                             string
+			AggregatedOutput                           string `json:"aggregated_output"`
+			ExitCode                                   *int   `json:"exit_code"`
 		}
 	}
 	if o.Type != "session_meta" && o.Type != "turn_context" && o.Type != "event_msg" && o.Type != "token_usage_record" && o.Type != "response_item" {
@@ -364,6 +372,14 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 	if o.Type == "session_meta" {
 		c.session = p.ID
 		c.provider = p.ModelProvider
+		if bodies {
+			var body struct {
+				BaseInstructions struct{ Text string } `json:"base_instructions"`
+			}
+			if json.Unmarshal(o.Payload, &body) == nil {
+				c.codexBase = body.BaseInstructions.Text
+			}
+		}
 		return nil
 	}
 	if o.Type == "turn_context" {
@@ -376,17 +392,60 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 		t.model = p.Model
 		return interrupted
 	}
+	// Unrelated settings/usage notifications must not recreate a completed
+	// turn and export a second, empty root when the next interaction starts.
+	if o.Type == "event_msg" {
+		switch p.Type {
+		case "task_started", "task_complete", "turn_aborted":
+		case "item_completed":
+			switch p.Item.Type {
+			case "UserMessage", "AgentMessage", "CommandExecution", "McpToolCall", "FileChange", "ImageView", "ContextCompaction", "Extension":
+			default:
+				return nil
+			}
+		default:
+			return nil
+		}
+	}
 	id := p.TurnID
+	if id == "" {
+		id = p.Metadata.TurnID
+	}
 	if id == "" {
 		id = c.current
 	}
 	if id == "" {
 		return nil
 	}
+	if (p.Type == "task_complete" || p.Type == "turn_aborted") && c.turns[id] == nil {
+		return nil
+	}
 	t := c.turn(id, o.Timestamp)
+	if !bodies {
+		t.codex = nil
+		t.codexBase, c.codexBase = "", ""
+		t.input, t.output = "", ""
+	}
 	switch {
 	case o.Type == "response_item":
 		switch p.Type {
+		case "message":
+			// Skip copying response content and base instructions unless the
+			// caller enabled body export; metadata-only polling stays light.
+			if bodies {
+				var body struct {
+					Role    string
+					Content json.RawMessage
+				}
+				if json.Unmarshal(o.Payload, &body) == nil && (body.Role == "user" || body.Role == "assistant" || body.Role == "system" || body.Role == "developer") {
+					t.codexConversation().message(body.Role, p.ID, "response", body.Content)
+					if body.Role == "user" {
+						t.input = string(body.Content)
+					} else if body.Role == "assistant" {
+						t.output = string(body.Content)
+					}
+				}
+			}
 		case "custom_tool_call", "function_call":
 			if p.CallID == "" || len(c.tools) >= 256 {
 				return nil
@@ -394,10 +453,11 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 			s := c.span(id, p.CallID, p.Name, "tool", o.Timestamp, o.Timestamp)
 			s.Inferred = true
 			if bodies {
-				s.Input = string(p.Arguments)
+				s.Input = codexTraceJSON(p.Arguments)
 				if s.Input == "" {
 					s.Input = string(p.Input)
 				}
+				t.codexConversation().call(p.CallID, p.Name, json.RawMessage(s.Input), true)
 			}
 			c.tools[p.CallID] = s
 		case "custom_tool_call_output", "function_call_output":
@@ -409,6 +469,7 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 			s.End = o.Timestamp
 			if bodies {
 				s.Output = string(p.Output)
+				s.Output = t.codexConversation().result(p.CallID, s.Name, s.Output)
 			}
 			if s.End.After(t.last) {
 				t.last = s.End
@@ -436,28 +497,33 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 		switch p.Item.Type {
 		case "UserMessage":
 			if bodies {
-				t.input = string(p.Item.Content)
+				if t.codexConversation().message("user", p.Item.ID, "native", p.Item.Content) {
+					t.input = string(p.Item.Content)
+				}
 			}
 			return nil
 		case "AgentMessage":
 			if bodies {
 				t.output = string(p.Item.Content)
+				t.codexConversation().message("assistant", p.Item.ID, "native", p.Item.Content)
 			}
 			return nil
-		case "CommandExecution", "McpToolCall", "FileChange", "ImageView", "ContextCompaction":
+		case "CommandExecution", "McpToolCall", "FileChange", "ImageView", "ContextCompaction", "Extension":
 			// A recorded MCP completion is authoritative over the matching
 			// inferred function_call/output pair, which uses the same call ID.
 			if p.Item.Type == "McpToolCall" {
 				delete(c.tools, p.Item.ID)
 			}
-			name := map[string]string{"CommandExecution": "command", "McpToolCall": "mcp tool", "FileChange": "file change", "ImageView": "view image", "ContextCompaction": "compaction"}[p.Item.Type]
+			name := map[string]string{"CommandExecution": "command", "McpToolCall": "mcp tool", "FileChange": "file change", "ImageView": "view image", "ContextCompaction": "compaction", "Extension": "extension"}[p.Item.Type]
 			if p.Item.Tool != "" {
 				name = p.Item.Tool
+			} else if p.Item.Type == "Extension" && p.Item.Kind != "" {
+				name = p.Item.Kind
 			}
 			s := c.span(id, p.Item.ID, name, "tool", start, end)
 			s.Error = p.Item.Status == "failed" || p.Item.Status == "error" || p.Item.ExitCode != nil && *p.Item.ExitCode != 0
 			if bodies {
-				s.Input = string(p.Item.Arguments)
+				s.Input = codexTraceJSON(p.Item.Arguments)
 				if s.Input == "" {
 					s.Input = string(p.Item.Command)
 				}
@@ -467,6 +533,23 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 				}
 				if s.Output == "" {
 					s.Output = string(p.Item.Result)
+				}
+				switch p.Item.Type {
+				case "FileChange":
+					s.Input = string(p.Item.Changes)
+					if s.Output == "" {
+						out, _ := json.Marshal(map[string]string{"stdout": p.Item.Stdout, "stderr": p.Item.Stderr})
+						s.Output = string(out)
+					}
+				case "ImageView":
+					in, _ := json.Marshal(map[string]string{"path": p.Item.Path})
+					s.Input = string(in)
+				case "Extension":
+					in, _ := json.Marshal(struct {
+						Query  json.RawMessage `json:"query,omitempty"`
+						Action json.RawMessage `json:"action,omitempty"`
+					}{p.Item.Query, p.Item.Action})
+					s.Input, s.Output = string(in), string(p.Item.Results)
 				}
 			}
 			// exec may run commands which also have recorded completion events.
@@ -490,6 +573,13 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 			if end.After(t.last) {
 				t.last = end
 			}
+			if bodies && s.Parent == traceSpanID(c.agent, c.session, id, "root") {
+				conversation := t.codexConversation()
+				// Native operations with no response-item call still belong in
+				// the next input's transcript, not that model's generated output.
+				conversation.call(p.Item.ID, name, json.RawMessage(s.Input), false)
+				s.Output = conversation.result(p.Item.ID, name, s.Output)
+			}
 			return []TraceSpan{s}
 		}
 	case o.Type == "token_usage_record":
@@ -506,8 +596,7 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 		s.Tokens = Tokens{Input: max(0, p.Usage.Input-p.Usage.Cached-p.Usage.CacheWrite), CacheRead: p.Usage.Cached, CacheWrite: p.Usage.CacheWrite, Output: p.Usage.Output}
 		s.Reasoning = p.Usage.Reasoning
 		if bodies {
-			s.Output = t.output
-			s.Input = t.input
+			s.Input, s.Output = t.codexConversation().response()
 		}
 		t.last = o.Timestamp
 		return []TraceSpan{s}
@@ -524,6 +613,9 @@ func (c *traceCursor) codex(line []byte, bodies bool) []TraceSpan {
 		}
 		s := c.root(t, end, p.Type == "turn_aborted")
 		delete(c.turns, id)
+		if c.current == id {
+			c.current = ""
+		}
 		var unfinished []TraceSpan
 		for key, call := range c.tools {
 			if call.Turn == id {
